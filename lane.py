@@ -22,6 +22,9 @@ class Lane:
 
         self.last_frame = None
 
+        # 🔥 PERFORMANCE CONTROL
+        self.frame_count = 0
+
         # UI
         container = tk.Frame(parent, bg="white")
         container.pack()
@@ -97,10 +100,11 @@ class Lane:
         if not self.cap:
             return None
 
-        if not self.running:
-            return self.last_frame
+        # 🔥 SKIP FRAMES AT SOURCE (FAST PLAYBACK)
+        skip_n = 7 # increase to 4 or 5 for faster video
 
-        ret, frame = self.cap.read()
+        for _ in range(skip_n):
+            ret, frame = self.cap.read()
 
         if not ret:
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -108,55 +112,49 @@ class Lane:
             if not ret:
                 return None
 
-        frame = cv2.resize(frame, (400,250))
-        results = self.model(frame, verbose=False)[0]
+        # 🔥 SMALLER FRAME (BIG SPEED BOOST)
+        frame = cv2.resize(frame, (300, 180))
 
-        self.counts = {"car":0,"motorcycle":0,"bus":0,"truck":0}
-        current_positions = {}
+        self.frame_count += 1
 
-        if results.boxes:
-            for i, box in enumerate(results.boxes):
-                cls_id = int(box.cls[0])
-                conf = float(box.conf[0])
+        # 🔥 RUN YOLO LESS OFTEN
+        run_detection = (self.frame_count % 3 == 0)
 
-                if conf < CONF_THRESH or cls_id not in ALLOWED_CLASSES:
-                    continue
+        if not self.running:
+            return self.last_frame if self.last_frame is not None else frame
 
-                x1,y1,x2,y2 = map(int, box.xyxy[0])
-                label = ALLOWED_CLASSES[cls_id]
+        if run_detection:
+            results = self.model(frame, conf=0.4, verbose=False)[0]
 
-                self.counts[label] += 1
+            self.counts = {"car":0,"motorcycle":0,"bus":0,"truck":0}
+            current_positions = {}
 
-                cx = (x1 + x2)//2
-                cy = (y1 + y2)//2
-                current_positions[i] = (cx, cy)
+            if results.boxes:
+                for i, box in enumerate(results.boxes):
+                    cls_id = int(box.cls[0])
+                    conf = float(box.conf[0])
 
-                if i in self.prev_positions:
-                    px, py = self.prev_positions[i]
-                    dist = ((cx-px)**2 + (cy-py)**2)**0.5
+                    if conf < CONF_THRESH or cls_id not in ALLOWED_CLASSES:
+                        continue
 
-                    if dist < 3:
-                        self.stop_frames[i] = self.stop_frames.get(i,0) + 1
-                    else:
-                        self.stop_frames[i] = 0
+                    x1,y1,x2,y2 = map(int, box.xyxy[0])
+                    label = ALLOWED_CLASSES[cls_id]
 
-                cv2.rectangle(frame,(x1,y1),(x2,y2),(0,255,0),2)
-                cv2.putText(frame,label,(x1,y1-5),
-                            cv2.FONT_HERSHEY_SIMPLEX,0.5,(255,255,255),2)
+                    self.counts[label] += 1
 
-        self.prev_positions = current_positions
+                    cx = (x1 + x2)//2
+                    cy = (y1 + y2)//2
+                    current_positions[i] = (cx, cy)
 
-        self.accident = any(v > 15 for v in self.stop_frames.values())
+                    cv2.rectangle(frame,(x1,y1),(x2,y2),(0,255,0),2)
+                    cv2.putText(frame,label,(x1,y1-5),
+                                cv2.FONT_HERSHEY_SIMPLEX,0.5,(255,255,255),2)
 
-        if self.accident and not self.alert_on:
-            self.alert_on = True
-            self.blink_alert()
-        elif not self.accident:
-            self.alert_on = False
-            self.alert_label.config(text="")
+            self.prev_positions = current_positions
+            self.last_frame = frame
 
-        self.last_frame = frame
-        return frame
+        # 🔥 SHOW LAST FRAME FOR SMOOTHNESS
+        return self.last_frame if self.last_frame is not None else frame
 
     def update_ui(self):
         frame = self.process()

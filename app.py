@@ -5,106 +5,128 @@ import cv2
 from ultralytics import YOLO
 from lane import Lane
 from config import *
+from datetime import datetime
+from dashboard import Dashboard
+
 
 class TrafficApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Smart Traffic System")
-        self.root.geometry("1200x750")
-        self.root.configure(bg="#f0f0f0")
+        self.root.title("AI Smart Traffic Control System")
+        self.root.geometry("1980x1024")
 
-        # -------- MAIN FRAME --------
-        main_frame = tk.Frame(root, bg="#f0f0f0")
-        main_frame.pack(fill=tk.BOTH, expand=1)
+        # ================= HEADER =================
+        self.header = tk.Frame(root, bg="#0f172a", height=80)
+        self.header.pack(fill="x")
 
-        canvas = tk.Canvas(main_frame, bg="#f0f0f0", highlightthickness=0)
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=1)
+        tk.Label(self.header, text="🚦 AI Smart Traffic Control System",
+                 fg="white", bg="#0f172a",
+                 font=("Segoe UI", 20, "bold")).place(x=30, y=20)
 
-        scrollbar = tk.Scrollbar(main_frame, orient=tk.VERTICAL, command=canvas.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.timer = tk.Label(self.header,
+                              fg="#22c55e", bg="#0f172a",
+                              font=("Segoe UI", 13, "bold"))
+        self.timer.place(x=30, y=55)
 
-        canvas.configure(yscrollcommand=scrollbar.set)
+        tk.Button(self.header, text="Live",
+                  bg="#1e293b", fg="white",
+                  command=lambda: self.show_frame(self.live_frame)).place(relx=0.4, rely=0.3)
 
-        # -------- CONTAINER --------
-        self.container = tk.Frame(canvas, bg="#f0f0f0")
+        tk.Button(self.header, text="Dashboard",
+                  bg="#1e293b", fg="white",
+                  command=lambda: self.show_frame(self.dashboard_frame)).place(relx=0.5, rely=0.3)
 
-        self.canvas_window = canvas.create_window((0, 0), window=self.container, anchor="n")
+        self.clock = tk.Label(self.header,
+                              fg="#cbd5f5", bg="#0f172a")
+        self.clock.place(relx=0.85, rely=0.2)
 
-        # -------- SCROLL FIX --------
-        def on_configure(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
+        self.global_alert = tk.Label(self.header,
+                                    fg="red", bg="#0f172a")
+        self.global_alert.place(relx=0.7, rely=0.5)
 
-        self.container.bind("<Configure>", on_configure)
+        # ================= MAIN =================
+        self.container = tk.Frame(root)
+        self.container.pack(fill="both", expand=True)
 
-        # -------- CENTER FIX --------
-        def center_content(event):
-            canvas_width = event.width
-            frame_width = self.container.winfo_reqwidth()
-
-            x = max((canvas_width - frame_width) // 2, 0)
-            canvas.coords(self.canvas_window, x, 0)
-
-        canvas.bind("<Configure>", center_content)
-
-        # -------- MOUSE SCROLL --------
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-
-        # -------- MODEL --------
-        self.model = YOLO("yolov8n.pt")
-
-        # -------- HEADER --------
-        header = tk.Frame(self.container, bg="#f0f0f0")
-        header.pack(pady=10)
-
-        self.timer = tk.Label(header, text="", font=("Arial",16,"bold"), bg="#f0f0f0")
-        self.timer.pack()
-
-        # -------- CONTROLS --------
-        control = tk.Frame(self.container, bg="#f0f0f0")
+        # CONTROLS
+        control = tk.Frame(self.container)
         control.pack(pady=10)
 
-        tk.Button(control, text="Load 4 Videos", width=15, command=self.load_videos).pack(side=tk.LEFT, padx=5)
-        tk.Button(control, text="Next Lane", width=12, command=self.force_next).pack(side=tk.LEFT, padx=5)
-        tk.Button(control, text="Force Green", width=12, command=self.force_green).pack(side=tk.LEFT, padx=5)
-        tk.Button(control, text="Force Red", width=12, command=self.force_red).pack(side=tk.LEFT, padx=5)
+        tk.Button(control, text="Load 4 Videos", command=self.load_videos).pack(side=tk.LEFT, padx=5)
+        tk.Button(control, text="Next Lane", command=self.force_next).pack(side=tk.LEFT, padx=5)
+        tk.Button(control, text="Force Green", command=self.force_green).pack(side=tk.LEFT, padx=5)
+        tk.Button(control, text="Force Red", command=self.force_red).pack(side=tk.LEFT, padx=5)
 
-        # -------- GRID --------
-        grid_wrapper = tk.Frame(self.container, bg="#f0f0f0")
-        grid_wrapper.pack()
+        # ================= FRAMES =================
+        self.main_area = tk.Frame(self.container)
+        self.main_area.pack(fill="both", expand=True)
 
-        grid = tk.Frame(grid_wrapper, bg="#f0f0f0")
-        grid.pack()
+        self.live_frame = tk.Frame(self.main_area)
+        self.dashboard_frame = tk.Frame(self.main_area, bg="#f8fafc")
+
+        for f in (self.live_frame, self.dashboard_frame):
+            f.grid(row=0, column=0, sticky="nsew")
+
+        # ================= LIVE FIX =================
+        live_wrapper = tk.Frame(self.live_frame)
+        live_wrapper.pack(fill="both", expand=True)
+
+        # USE GRID FOR TRUE CENTER
+        live_wrapper.grid_rowconfigure(0, weight=1)
+        live_wrapper.grid_columnconfigure(0, weight=1)
+
+        center = tk.Frame(live_wrapper)
+        center.grid(row=0, column=0)
+
+        grid = tk.Frame(center)
+        grid.pack(expand=True)
+
+        self.model = YOLO("yolov8n.pt")
 
         self.lanes = []
-
         for i in range(4):
+            frame = tk.Frame(
+                grid, bg="white", bd=2, relief="solid",
+                width=640, height=480  # Larger video box
+            )
+            frame.grid(row=i//2, column=i%2, padx=40, pady=40, sticky="nsew")
+            frame.grid_propagate(False)  # Prevent shrinking
+
             pos = "left" if i % 2 == 0 else "right"
+            self.lanes.append(Lane(frame, self.model, pos))
 
-            frame = tk.Frame(grid, bg="white", bd=2, relief="solid")
-            frame.grid(row=i//2, column=i%2, padx=20, pady=20)
+        # Make grid cells expand equally
+        grid.grid_rowconfigure(0, weight=1)
+        grid.grid_rowconfigure(1, weight=1)
+        grid.grid_columnconfigure(0, weight=1)
+        grid.grid_columnconfigure(1, weight=1)
 
-            lane = Lane(frame, self.model, pos)
-            self.lanes.append(lane)
+        # ================= DASHBOARD =================
+        self.dashboard = Dashboard(self.dashboard_frame, self.lanes)
 
-        # -------- TRAFFIC STATE --------
+        # STATE
         self.current_lane = 0
         self.state = "GREEN"
         self.last_switch = time.time()
 
+        self.show_frame(self.live_frame)
+        self.update_clock()
         self.loop()
 
+    def show_frame(self, frame):
+        frame.tkraise()
+
+    def update_clock(self):
+        self.clock.config(text=datetime.now().strftime("%H:%M:%S"))
+        self.root.after(1000, self.update_clock)
+
     def load_videos(self):
-        paths = filedialog.askopenfilenames(filetypes=[("Video","*.mp4")])
+        paths = filedialog.askopenfilenames(filetypes=[("Video", "*.mp4")])
         if len(paths) != 4:
-            print("Select 4 videos")
             return
 
         for lane, p in zip(self.lanes, paths):
             lane.cap = cv2.VideoCapture(p)
-            lane.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
 
         self.lanes[0].set_green()
         self.last_switch = time.time()
@@ -117,20 +139,16 @@ class TrafficApp:
         self.lanes[self.current_lane].set_red()
         self.current_lane = (self.current_lane + 1) % 4
         self.lanes[self.current_lane].set_green()
-        self.state = "GREEN"
         self.last_switch = time.time()
 
     def force_green(self):
-        for lane in self.lanes:
-            lane.set_red()
+        for l in self.lanes:
+            l.set_red()
         self.lanes[self.current_lane].set_green()
-        self.state = "GREEN"
-        self.last_switch = time.time()
 
     def force_red(self):
-        for lane in self.lanes:
-            lane.set_red()
-        self.state = "RED"
+        for l in self.lanes:
+            l.set_red()
 
     def loop(self):
         elapsed = time.time() - self.last_switch
@@ -139,9 +157,7 @@ class TrafficApp:
             dyn = self.calculate_green_time()
             rem = int(dyn - elapsed)
 
-            self.timer.config(
-                text=f"Lane {self.current_lane+1} GREEN {rem}s | Density {sum(self.lanes[self.current_lane].counts.values())}"
-            )
+            self.timer.config(text=f"Lane {self.current_lane+1} GREEN {rem}s")
 
             if elapsed > dyn:
                 self.state = "YELLOW"
@@ -149,9 +165,6 @@ class TrafficApp:
                 self.lanes[self.current_lane].set_yellow()
 
         elif self.state == "YELLOW":
-            rem = int(YELLOW_TIME - elapsed)
-            self.timer.config(text=f"Lane {self.current_lane+1} YELLOW {rem}s")
-
             if elapsed > YELLOW_TIME:
                 self.lanes[self.current_lane].set_red()
                 self.current_lane = (self.current_lane + 1) % 4
@@ -162,7 +175,14 @@ class TrafficApp:
         for lane in self.lanes:
             lane.update_ui()
 
-        self.root.after(30, self.loop)
+        self.dashboard.update()
+
+        if any(l.accident for l in self.lanes):
+            self.global_alert.config(text="⚠ ACCIDENT DETECTED")
+        else:
+            self.global_alert.config(text="")
+
+        self.root.after(10, self.loop)
 
 
 if __name__ == "__main__":
