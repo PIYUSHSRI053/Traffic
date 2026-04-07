@@ -63,7 +63,7 @@ ai_traffic_system/
 
 ## 🖼️ System Architecture
 
-![System Architecture](./assets/architecture.png)
+![System Architecture](Picture1.png)
 
 ---
 
@@ -76,10 +76,6 @@ ai_traffic_system/
 ### 📊 Analytics Dashboard
 
 ![Dashboard](output1.png.png)
-
-### 📈 Traffic Trends & Lane Analysis
-
-![Charts](Picture1.png)
 
 ---
 
