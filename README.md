@@ -112,7 +112,7 @@ ai_traffic_system/
 
 ## 👨‍💻 Author
 
-Piyush Sri
+Piyush Srivastava
 GitHub: https://github.com/PIYUSHSRI053
 
 ---
