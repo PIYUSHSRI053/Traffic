@@ -71,15 +71,15 @@ ai_traffic_system/
 
 ### 🔴 Live Traffic Detection & Signal Control
 
-![Live Output](./assets/output1.png)
+![Live Output](.output2.png.png)
 
 ### 📊 Analytics Dashboard
 
-![Dashboard](./assets/output2.png)
+![Dashboard](output1.png.png)
 
 ### 📈 Traffic Trends & Lane Analysis
 
-![Charts](./assets/output3.png)
+![Charts](architecture.png.png)
 
 ---
 
