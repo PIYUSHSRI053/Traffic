@@ -40,8 +40,8 @@ ai_traffic_system/
 ## ▶️ How to Run
 
 1. Clone the repository:
-   git clone https://github.com/PIYUSHSRI053/voting_system.git
-   cd voting_system
+   git clone https://github.com/PIYUSHSRI053/Traffic?tab=readme-ov-file
+   cd ai_traffic_system
 
 2. Install dependencies:
    pip install -r requirements.txt
